@@ -1,5 +1,21 @@
+import os
+import random
+
 MODEL_NAME = "qwen3.5:4b"
-TARGET_ANSWERS = ["ウィーン会議", "マリー・キュリー", "アマゾン川", "シェイクスピア", "モナリザ", "カタカナ", "茶道", "ブラックホール"]
+def get_random_answers(filename="labeled_entities.txt", num_questions=3):
+    """テキストファイルからランダムに指定数の単語を抽出する"""
+    if not os.path.exists(filename):
+        # ファイルが配置されていない場合の安全装置
+        print(f"⚠️ {filename} が見つかりません。デフォルトの単語を使用します。")
+        return ["ウィーン会議"]
+        
+    with open(filename, "r", encoding="utf-8") as f:
+        # 空行を無視して、92万語の単語をすべてリスト化する
+        words = [line.strip() for line in f if line.strip()]
+    
+    # リストの中からランダムに num_questions 個選ぶ
+    return random.sample(words, num_questions)
+TARGET_ANSWERS = get_random_answers("labeled_entities.txt", 3)
 CSV_FILENAME = "quiz_results_evaluated.csv"
 MAX_RETRIES = 3
 
@@ -39,5 +55,14 @@ QUESTION_SYSTEM_PROMPT = """
   "difficult": "1",
   "answer": "福神漬け",
   "question": "大根やなた豆などの7種類の野菜を原料にして作られ、よくカレーの付け合わせとして食べられている漬物の一種は何でしょう？"
+}
+ 
+出力例2:
+{
+  "category": "4",
+  "difficult": "2",
+  "answer": "バッキンガム宮殿",
+  "question": "午前11 時から行われる衛兵交代の儀式/も有名な、イギリス国王がロン
+ドンにおける住居として使用する宮殿は何でしょう？？"
 }
 """

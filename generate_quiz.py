@@ -6,7 +6,7 @@ from quiz_score import search_searxng, create_question, evaluate_question
 
 with open(CSV_FILENAME, mode='w', encoding='utf-8-sig', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(["正解", "問題文"])
+    writer.writerow(["正解", "問題文", "カテゴリ", "難易度"])
 
 for target_answer in TARGET_ANSWERS:
     print(f"\n=======================================")
@@ -47,7 +47,12 @@ for target_answer in TARGET_ANSWERS:
             print("=> ✨合格！CSVに保存します。")
             with open(CSV_FILENAME, mode='a', encoding='utf-8-sig', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([quiz_data.get("answer", ""), quiz_data.get("question", "")])
+                writer.writerow([
+                    quiz_data.get("answer", ""),
+                    quiz_data.get("question", ""),
+                    quiz_data.get("category", ""),
+                    quiz_data.get("difficult", ""),
+                ])
             break
         else:
             if attempt < MAX_RETRIES:
