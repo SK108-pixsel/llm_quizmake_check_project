@@ -18,7 +18,12 @@ for target_answer in TARGET_ANSWERS:
     for attempt in range(1, MAX_RETRIES + 1):
         print(f"\n--- 試行 {attempt}/{MAX_RETRIES} 回目 ---")
 
-        quiz_data, create_error = create_question(search_result, target_answer, feedback)
+        quiz_data, create_error = create_question(
+            search_result,
+            target_answer,
+            feedback,
+            target_category_num,
+        )
         if create_error:
             print(f"=> ⚠️{create_error} 再生成します...")
             feedback = "\n【修正の指示】\n前回は正しいJSONが出力されませんでした。必ず指定したJSON形式のみを出力してください。"
