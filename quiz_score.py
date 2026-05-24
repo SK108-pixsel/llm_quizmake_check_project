@@ -14,6 +14,17 @@ DEBUG_RAW_RESPONSE = os.getenv("QUIZ_DEBUG", "0") == "1"
 SEARCH_RESULT_MAX_CHARS = 250
 QUESTION_MAX_TOKENS = 800
 EVALUATION_MAX_TOKENS = 800
+GENRE_JUDGE_MAX_TOKENS = 120
+
+GENRE_JUDGE_SYSTEM_PROMPT = """
+あなたはクイズのジャンル判定AIです。
+与えられた単語が、指定されたジャンルに属するかを判定してください。
+出力は必ずJSONのみとし、次の形式にしてください。
+{
+    "is_match": trueかfalse,
+    "reason": "判定理由を一言で"
+}
+"""
 
 
 def search_searxng(keyword):
@@ -139,7 +150,7 @@ def extract_json_text(raw_text):
     return match.group(0)
 
 
-def _chat_with_retry(messages, temperature, max_tokens, frequency_penalty=0.5, presence_penalty=1.4):
+def _chat_with_retry(messages, temperature, max_tokens, frequency_penalty=0.5, presence_penalty=1.4, model_name=MODEL_NAME):
     """
     OpenAI互換クライアントからOllamaネイティブAPIに切り替え、
     沈黙エラーを回避しつつJSON出力とループ対策を行います。
@@ -147,7 +158,7 @@ def _chat_with_retry(messages, temperature, max_tokens, frequency_penalty=0.5, p
     for attempt in range(1, EMPTY_RESPONSE_RETRIES + 1):
         try:
             response = ollama.chat(
-                model=MODEL_NAME, # quiz_config.py で定義しているモデル名
+                model=model_name, # quiz_config.py で定義しているモデル名
                 messages=messages,
                 format="json",  # ネイティブAPIでの正しいJSON強制方法
 
@@ -186,8 +197,12 @@ def _shorten_search_result(search_result):
     return search_result[:SEARCH_RESULT_MAX_CHARS]
 
 
-def create_question(search_result, target_answer, feedback=""):
+def create_question(search_result, target_answer, feedback="", target_category_num=None):
     short_search_result = _shorten_search_result(search_result)
+    category_instruction = ""
+    if target_category_num is not None:
+        category_instruction = f"【カテゴリー番号】\nこのクイズはカテゴリー番号『{target_category_num}』としてJSONを出力してください。\n"
+
     user_prompt = f"""以下の入力内容をもとに、指定形式のJSONで問題を作成してください。
 
 【参考情報】
@@ -196,7 +211,7 @@ def create_question(search_result, target_answer, feedback=""):
 【正解キーワード】
 {target_answer}
 
-【修正指示】
+{category_instruction}【修正指示】
 {feedback if feedback else "なし"}
 
 【出力条件】
@@ -227,6 +242,41 @@ def create_question(search_result, target_answer, feedback=""):
         return quiz_data, None
     except json.JSONDecodeError:
         return None, "抽出した文字列のJSONパースに失敗しました。"
+
+
+def judge_genre(target_answer, target_category_name, model_name=MODEL_NAME):
+    user_prompt = f"""【単語】
+{target_answer}
+
+【判定するジャンル】
+{target_category_name}
+
+この単語が判定するジャンルに属するなら true、属さないなら false を返してください。
+"""
+
+    raw_text, err = _chat_with_retry(
+        messages=[
+            {"role": "system", "content": GENRE_JUDGE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.0,
+        max_tokens=GENRE_JUDGE_MAX_TOKENS,
+        frequency_penalty=0.0,
+        presence_penalty=0.0,
+        model_name=model_name,
+    )
+    if err:
+        return False
+
+    json_text = extract_json_text(raw_text)
+    if json_text is None:
+        return False
+
+    try:
+        result = json.loads(json_text)
+        return bool(result.get("is_match", False))
+    except json.JSONDecodeError:
+        return False
 
 
 def evaluate_question(search_result, target_answer, question_text):
